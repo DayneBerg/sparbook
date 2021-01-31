@@ -1,7 +1,5 @@
-from PIL import Image
-from PIL.ExifTags import TAGS
-from tkinter import *
-from tkinter import filedialog
+import torchtext as torchtext
+from torchtext.vocab import GloVe
 
 
 class Test:
@@ -16,6 +14,85 @@ if __name__ == '__main__':
     # my_car.exec()
     # x = np.array([[0,       1, 2,   3,   4, 5, 6],
     # [-2.5, -1.5, 0, 1.5, 2.5, 3.5-2*math.pi, 4.5-2*math.pi]])
+
+    batch_size = 2  # 2700
+
+    print('0')
+    # set up fields
+    SRC = torchtext.data.Field(lower=True, include_lengths=True, batch_first=True)
+    TRG = torchtext.data.Field(lower=True, include_lengths=True, batch_first=True)
+
+    print('1')
+    train, val, test = torchtext.datasets.WMT14.splits(
+        exts=('.en', '.de'),
+        fields=(SRC, TRG),
+        root='C:/Users/Dayne/Documents/Data',
+    )
+
+    print('2')
+    SRC.build_vocab(train, vectors=GloVe(name='6B', dim=300))
+
+    print('3')
+    train_i = torchtext.data.Iterator(train, batch_size=batch_size)
+
+    print('4')
+
+    temp = train_i.__iter__().__next__()
+    print(type(temp))
+    print(type(temp[0]))
+    print(type(temp[0][0]))
+    print(type(temp[0][0][0]))
+    print(type(temp[0][0][0][0]))
+
+    '''# get summary statistics of samples
+    img_names = os.listdir(f"{os.getcwd()}\samples")
+    nlines = []
+    img_width = []
+    num_chars = []
+    char_width = []
+    gamma = []
+    for img_name in img_names:
+        with Image.open(f"{os.getcwd()}\samples\{img_name}") as cur_img:
+            exifdata = cur_img.getexif()
+            data = exifdata.get(270).split(chr(31))[:-1]
+            num_lines = len(data)
+            nlines.append(num_lines)
+            img_width.extend([cur_img.width] * num_lines)
+            hist = cur_img.histogram()
+            for i in range(1, len(hist)):
+                hist[i] += hist[i-1]
+            hist2 = []
+            for i in range(len(hist)):
+                try:
+                    temp = math.log(hist[i]/hist[-1], (2 * i - 1)/(2 * len(hist)))
+                    hist2.append(temp)
+                except ValueError:
+                    pass
+            cur_gamma = statistics.mean(hist2)
+            gamma.extend([cur_gamma] * num_lines)
+            for text in data:
+                num_chars.append(1+len(text))  # must add unit seperator back
+                char_width.append(cur_img.width / len(text))
+    print(f"Nlines: {min(nlines)}, "
+          f"{statistics.quantiles(nlines, n=4)}, {max(nlines)} : "
+          f"{len(nlines)}, {statistics.mean(nlines)}, "
+          f"{statistics.stdev(nlines)}")
+    print(f"Img Width: {min(img_width)}, "
+          f"{statistics.quantiles(img_width, n=4)}, {max(img_width)} : "
+          f"{len(img_width)}, {statistics.mean(img_width)}, "
+          f"{statistics.stdev(img_width)}")
+    print(f"Num Chars: {min(num_chars)}, "
+          f"{statistics.quantiles(num_chars, n=4)}, {max(num_chars)} : "
+          f"{len(num_chars)}, {statistics.mean(num_chars)}, "
+          f"{statistics.stdev(num_chars)}")
+    print(f"Char Width: {min(char_width)}, "
+          f"{statistics.quantiles(char_width, n=4)}, {max(char_width)} : "
+          f"{len(char_width)}, {statistics.mean(char_width)}, "
+          f"{statistics.stdev(char_width)}")
+    print(f"Gamma: {min(gamma)}, "
+          f"{statistics.quantiles(gamma, n=4)}, {max(gamma)} : "
+          f"{len(gamma)}, {statistics.mean(gamma)}, "
+          f"{statistics.stdev(gamma)}")'''
 
     '''img = Image.open('C:/Users/Dayne/Pictures/Saved Pictures/IMG_0195.JPG').convert(mode="L")
     img.show()
@@ -67,7 +144,7 @@ if __name__ == '__main__':
     '''with open('sparbook.json', 'w') as json_file:
         json.dump(static_settings, json_file)'''
 
-    # filename = f"{os.getcwd()}\samples\Chicago World Fair 1 1.jpg"
+    '''# filename = f"{os.getcwd()}\samples\Chicago World Fair 1 1.jpg"
     filename = filedialog.askopenfilename()
     img = Image.open(filename)
     img.show()
@@ -79,5 +156,6 @@ if __name__ == '__main__':
             data = data.decode()
         print(f"{tag:25}: {data}")
     # exifdata.__setitem__(270, exifdata.get(270).replace('?', '1').replace(' -', '-').replace('- ', '-'))
-    exifdata.__setitem__(270, exifdata.get(270).replace('acheived', 'achieved'))
-    # img.save(filename, exif=exifdata)
+    exifdata.__setitem__(270, exifdata.get(270).replace('accomodations', 'accommodations'))
+    # 4
+    # img.save(filename, exif=exifdata)'''

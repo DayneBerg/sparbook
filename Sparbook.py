@@ -1,16 +1,16 @@
 import json
 import math
 import ntpath
-import numpy as np
 import os
-import statistics
 import traceback
-from PIL import ImageTk, Image
-from PIL.ExifTags import TAGS
 from datetime import datetime
 from secrets import token_hex
 from tkinter import *
 from tkinter import ttk, filedialog, messagebox
+
+import numpy as np
+from PIL import ImageTk, Image
+from PIL.ExifTags import TAGS
 
 from ImageHelper import ImageHelper
 from TranscriptionWindow import TranscriptionWindow
@@ -31,7 +31,7 @@ class Sparbook:
         :param kwargs:
             filepath: the initial image to be displayed
         """
-        self.version = [0, 7]  # 0.7
+        self.version = [0, 8]  # 0.8
         self.version_name = 'Beta'
         self.languages = ['No Language', 'Custom', 'English']
         self.imghelper = ImageHelper()
@@ -420,21 +420,6 @@ class Sparbook:
                     self.static_settings['updates'] = updates.tolist()
         print(f"Lang Entries: "
               f"{sum(self.static_settings[self.languages[1]])}, {sum(self.static_settings[self.languages[2]])}")
-        print(f"Img Width: {min(self.static_settings['stat1'])}, "
-              f"{statistics.quantiles(self.static_settings['stat1'], n=4)}, {max(self.static_settings['stat1'])} : "
-              f"{len(self.static_settings['stat1'])}, {statistics.mean(self.static_settings['stat1'])}, "
-              f"{statistics.stdev(self.static_settings['stat1'])}")
-        print(f"Text Width: {min(self.static_settings['stat2'])}, "
-              f"{statistics.quantiles(self.static_settings['stat2'], n=4)}, {max(self.static_settings['stat2'])} : "
-              f"{len(self.static_settings['stat2'])}, {statistics.mean(self.static_settings['stat2'])}, "
-              f"{statistics.stdev(self.static_settings['stat2'])}")
-        my_mean = 1.0 * sum(self.static_settings['stat1']) / sum(self.static_settings['stat2'])
-        st_dev = 0.0
-        for i in range(len(self.static_settings['stat1'])):
-            st_dev += self.static_settings['stat2'][i] * (
-                    self.static_settings['stat1'][i] / self.static_settings['stat2'][i] - my_mean
-            ) ** 2
-        print(f"Char Width: {my_mean}, {math.sqrt(st_dev / sum(self.static_settings['stat2']))}")
 
     def clear_transcript(self):
         self.transcript = []

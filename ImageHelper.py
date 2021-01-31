@@ -1,12 +1,13 @@
 import cmath
 import collections
 import math
+from tkinter import *
+from tkinter import messagebox
+
 import numpy as np
 from PIL import Image, ImageFilter
 from scipy.fft import rfft
 from scipy.ndimage.filters import gaussian_filter
-from tkinter import *
-from tkinter import messagebox
 
 
 class ImageHelper:

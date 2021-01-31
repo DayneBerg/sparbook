@@ -1,8 +1,9 @@
 import math
-import numpy as np
-from PIL import Image, ImageTk
 from tkinter import *
 from tkinter import Toplevel, ttk
+
+import numpy as np
+from PIL import Image, ImageTk
 
 
 class TranscriptionWindow:
