@@ -1,5 +1,5 @@
 # sparbook
-Image-to-text transcription application powered by A.I. and a unique segmentation algorithm.
+Page-to-text transcription application powered by A.I. and a unique segmentation algorithm.
 
 This project was started around the start of the fall 2020 semester and became a github repo around the start of the spring 2021 semester. Development and documentation is ongoing, but dependent on my free time.
 
