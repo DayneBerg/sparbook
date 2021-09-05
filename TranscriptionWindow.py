@@ -1,61 +1,74 @@
 import math
+from tkinter import Toplevel, ttk, StringVar, IntVar, Checkbutton, E, CENTER, Frame, NORMAL, DISABLED, W
+
 import numpy as np
+import torch
+import torch.nn.functional as F
 from PIL import Image, ImageTk
-from tkinter import *
-from tkinter import Toplevel, ttk
 
 
 class TranscriptionWindow:
-    def __init__(self, sparbook, img, lineheight):
+    def __init__(self, sparbook, img, lineheight, network):
         """
         Copyright Dayne Bergman, 2020
-        TODO: classifier
         :param sparbook: Sparbook object which created this window
         :param img: the PIL image
         :param lineheight: in pixels
+        :param network: neural network for transcribing text
         """
         print("--Transcription Window--")
-        # self.lines = []
+        assert (img.height % lineheight == 0), "sample's height was invalid"
+        # pad edges with median color
+        median_color = round(np.median(np.asarray(img)).item())
+        image = Image.new(mode="L", size=(img.width, img.height + 4), color=median_color)
+        image.paste(img, (0, 2))
+        network.train(mode=False)
         self.transcript = []
         self.entries = []
         self.toggles = []
         self.parent = Toplevel(sparbook.root)
         self.parent.columnconfigure(1, weight=1)
+
         self.rows = math.ceil(img.height / lineheight)
         for i in range(self.rows):
-            # add cropped img to lines      ??
+            img_data = image.crop((0, i * lineheight, img.width, (i + 1) * lineheight + 4))
+            # size = (W, 31)
+            # img_data = img_data.resize((img.width, 16))
+            img_data = torch.from_numpy(np.array(img_data, dtype=float)).permute(1, 0)
+
+            # preprocessing
+            img_data = img_data - median_color
+            # result from dataloader should be N,W,27+4
+            # median is zero, but norms of positive and negative values need to be equalized, respectively
+            pos = torch.gt(img_data, 0.0)
+            pos_norm = torch.sqrt(torch.sum(torch.square(torch.maximum(img_data, torch.zeros_like(img_data)))) / torch.sum(pos))
+            neg = torch.lt(img_data, 0.0)
+            neg_norm = torch.sqrt(torch.sum(torch.square(torch.minimum(img_data, torch.zeros_like(img_data)))) / torch.sum(neg))
+            img_data = torch.where(pos, img_data / pos_norm, img_data / neg_norm)
+
+            img_data = torch.unsqueeze(img_data, dim=0)
+            output = torch.argmax(F.log_softmax(network(img_data), dim=2), dim=2)
+            prediction = []
+            for col in range(output.shape[1]):
+                if len(prediction) == 0 or prediction[-1] != output[0][col]:
+                    prediction.append(output[0][col])
+            prediction = [e for e in prediction if e > 0]
+            predicted_str = ''
+            for e in prediction:
+                char = e
+                if char >= 65:  # grave accent (65) should have been replaced with acute accent (8)
+                    char += 1
+                predicted_str += chr(31 + char)
+
             self.transcript.append(StringVar())
-            # self.transcript[i].set("Lorem Ipsum")  # transcribe from line
+            self.transcript[i].set(predicted_str)
             self.entries.append(ttk.Entry(self.parent, width=60, textvariable=self.transcript[i]))
             self.entries[i].grid(column=1, row=i)
             self.toggles.append(IntVar())
             self.toggles[i].set(1)
             box = Checkbutton(self.parent, variable=self.toggles[i], command=self.update_states)
             box.grid(column=2, row=i)
-        '''r = np.asarray(img).copy()
-        rget = r.item
-        rset = r.itemset
-        for x1 in range(self.rows):
-            r2 = gaussian_filter(r, sigma=(0, 1))
-            r2get = r2.item
-            vals = []
-            for y in range(r.shape[1]):
-                val = 1000000
-                #val = rget(lineheight * x1, y)
-                for x2 in range(lineheight):
-                    #val += math.exp(rget(lineheight * x1 + x2, y))
-                    #val += (255 - rget(lineheight * x1 + x2, y)) ** 2
-                    #val = min(val, rget(lineheight * x1 + x2, y))
-                    val = min(val, (1 + x1 / 4) * rget(lineheight * x1 + x2, y) - r2get(lineheight * x1 + x2, y))
-                # val is smallest where there is text
-                # vals.append((self.rows * 255 / 2) - val)
-                vals.append(val)
-            for y in range(r.shape[1]):
-                print(vals[y])
-                x2 = round((lineheight - 1) * ((vals[y] - min(vals)) / (max(vals) - min(vals))) ** 0.5)
-                assert 0 <= x2 < lineheight
-                print(x2)
-                rset(lineheight*x1+x2, y, 0)'''
+
         g = np.asarray(img).copy()
         gset = g.itemset
         for x in range(lineheight - 1, img.height - 1, lineheight):

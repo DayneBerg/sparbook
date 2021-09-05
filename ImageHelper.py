@@ -1,12 +1,12 @@
 import cmath
 import collections
 import math
+from tkinter import messagebox
+
 import numpy as np
 from PIL import Image, ImageFilter
 from scipy.fft import rfft
 from scipy.ndimage.filters import gaussian_filter
-from tkinter import *
-from tkinter import messagebox
 
 
 class ImageHelper:
@@ -112,7 +112,7 @@ class ImageHelper:
         :param kwargs:
             scale: horizontal scale factor in voronoi processing (default self.hscale)
             rotate: whether the image should be rotated before segmentation (default False)
-            jello: whether the returned phase shift should be specified per-column or uniformly (default False/uniform)
+            nonlinear: whether the returned phase shift should be specified per-column or uniformly (default False/uniform)
         :return: wavelength, phase_shift, img
         """
         print("--fourier method--")
@@ -152,7 +152,7 @@ class ImageHelper:
         ft = np.concatenate(fts, axis=1)
         print("ft.shape: {}".format(ft.shape))
 
-        if kwargs.get('rotate', True) or kwargs.get('jello', False):
+        if kwargs.get('rotate', True) or kwargs.get('nonlinear', False):
             fta = np.abs(ft)
             ftam = np.sum(fta, axis=1)
             maxfreq = np.argmax(ftam)
@@ -209,9 +209,9 @@ class ImageHelper:
                     nlines,
                     scale=kwargs.get('scale', self.hscale),
                     rotate=False,
-                    jello=kwargs.get('jello', False)
+                    nonlinear=kwargs.get('nonlinear', False)
                 )  # reprocess the rotated image
-            else:  # kwargs.get('jello', False) must be True
+            else:  # kwargs.get('nonlinear', False) must be True
                 # phase_shifts = np.arctan2(imags, reals) / (2 * math.pi)
                 return wavelength, phaseshifts, img
         else:

@@ -1,18 +1,19 @@
 import json
 import math
 import ntpath
-import numpy as np
 import os
-import statistics
 import traceback
-from PIL import ImageTk, Image
-from PIL.ExifTags import TAGS
 from datetime import datetime
 from secrets import token_hex
-from tkinter import *
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, Tk, StringVar, N, Canvas, NW, E, W, Menu, BooleanVar, IntVar
+
+import numpy as np
+import torch
+from PIL import ImageTk, Image
+from PIL.ExifTags import TAGS
 
 from ImageHelper import ImageHelper
+from SparNetLSTM import SparNetLSTM
 from TranscriptionWindow import TranscriptionWindow
 
 
@@ -20,24 +21,29 @@ class Sparbook:
     def __init__(self, **kwargs):
         """
         Copyright Dayne Bergman, 2020
-        TODO: implement classifier,
-            reduce memory usage w/ PIL & numpy functions,
+        TODO:
+            auto-detect number of lines
+            remove deprecated language and bigram markov code
             make resistant to multiple transcription windows,
             do not error when file save is cancelled,
+            implement distinct paragraph recognition
+            implement continuous training
+            reduce memory usage w/ PIL & numpy functions,
             decrease imports,
-            open with functionality,
-            save transcript as,
-            remove print statements and deprecated methods pre-release (generate crash logs?)
+            appear in context menu,
+            save transcript as various file types,
+            remove deprecated code pre-release (generate crash logs?)
         :param kwargs:
             filepath: the initial image to be displayed
         """
-        self.version = [0, 7]  # 0.7
+        self.version = [0, 8]  # 0.8
         self.version_name = 'Beta'
         self.languages = ['No Language', 'Custom', 'English']
         self.imghelper = ImageHelper()
+        self.network = SparNetLSTM()
+        self.network.load_state_dict(torch.load('model_10_1.pth'))
         self.msglist = ("Open an image to proceed.",
                         "Click and drag to make a selection.",
-                        "An integer number of lines greater than one must be specified.",  # never used
                         )
         self.cols = 3
         self.x = 0
@@ -62,16 +68,17 @@ class Sparbook:
             self.update_static_settings()
         assert (
                 0 <= self.static_settings['version'][0] <= self.version[0]
-        ), "Internal JSON data has an incompatible version number"
+        ), "Internal JSON has an incompatible version number"
         if self.version[0] > self.static_settings['version'][0] or self.version[1] > self.static_settings['version'][1]:
-            messagebox.showinfo('', 'JSON was updated.')
+            messagebox.showinfo('', 'Internal JSON was updated.')
             self.update_static_settings()
         print(self.static_settings)
         print(f"Lang Entries: "
               f"{sum(self.static_settings[self.languages[1]])}, {sum(self.static_settings[self.languages[2]])}")
 
         self.root.title(f"Sparbook {self.version[0]}.{self.version[1]} {self.version_name}")
-        for i in range(self.cols): self.root.columnconfigure(i, weight=1)
+        for i in range(self.cols):
+            self.root.columnconfigure(i, weight=1)
         self.root.rowconfigure(1, weight=1)
 
         self.msg = StringVar()
@@ -113,7 +120,7 @@ class Sparbook:
         settingsmenu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Settings", menu=settingsmenu)
         self.settings = {'rotate fourier': BooleanVar(),
-                         'jello': BooleanVar(),
+                         'nonlinear': BooleanVar(),
                          'line-by-line': BooleanVar(),
                          'continuous training': BooleanVar(),
                          'record samples': BooleanVar(),
@@ -122,7 +129,7 @@ class Sparbook:
         for key in self.settings.keys():
             self.settings[key].set(self.static_settings[key])
         settingsmenu.add_checkbutton(label="Correct For Rotation", variable=self.settings['rotate fourier'])
-        settingsmenu.add_checkbutton(label="Jello Segmentation", variable=self.settings['jello'])
+        settingsmenu.add_checkbutton(label="Use Nonlinear Transform", variable=self.settings['nonlinear'])
         settingsmenu.add_checkbutton(label="Write Line-By-Line", variable=self.settings['line-by-line'])
         settingsmenu.add_checkbutton(label="Continuously Train Model", variable=self.settings['continuous training'])
         settingsmenu.add_checkbutton(label="Record Transcription Samples", variable=self.settings['record samples'])
@@ -227,13 +234,13 @@ class Sparbook:
             selection,
             nlines,
             rotate=self.settings['rotate fourier'].get(),
-            jello=self.settings['jello'].get()
+            nonlinear=self.settings['nonlinear'].get()
         )
         img2 = self.imghelper.standardize(wavelength, phase_shift, img)
         self.root.config(cursor="")
         self.root.update()
         # img2.show()
-        tw = TranscriptionWindow(self, img2, self.imghelper.lineheight)
+        tw = TranscriptionWindow(self, img2, self.imghelper.lineheight, self.network)
 
     def display_img(self):
         """
@@ -315,9 +322,9 @@ class Sparbook:
         new_settings = {'version': self.version + [v1, v2],
                         'dist id': self.static_settings.get('dist id', token_hex(16)),
                         'rotate fourier': self.static_settings.get('rotate fourier', False),
-                        'jello': self.static_settings.get('jello', True),
+                        'nonlinear': self.static_settings.get('nonlinear', True),
                         'line-by-line': self.static_settings.get('line-by-line', False),
-                        'continuous training': self.static_settings.get('continuous training', True),
+                        'continuous training': self.static_settings.get('continuous training', False),
                         'record samples': self.static_settings.get('record samples', False),
                         'preferred language': self.static_settings.get('preferred language', 2),
                         'stat1': [],
@@ -349,7 +356,7 @@ class Sparbook:
               f"{sum(self.static_settings[self.languages[1]])}, {sum(self.static_settings[self.languages[2]])}")
         self.transcript.append(lines)
         self.static_settings['rotate fourier'] = self.settings['rotate fourier'].get()
-        self.static_settings['jello'] = self.settings['jello'].get()
+        self.static_settings['nonlinear'] = self.settings['nonlinear'].get()
         self.static_settings['line-by-line'] = self.settings['line-by-line'].get()
         self.static_settings['continuous training'] = self.settings['continuous training'].get()
         self.static_settings['record samples'] = self.settings['record samples'].get()
@@ -360,7 +367,7 @@ class Sparbook:
                 desc += line + chr(31)
             if self.settings['rotate fourier'].get():
                 desc += 'R'
-            if self.settings['jello'].get():
+            if self.settings['nonlinear'].get():
                 desc += 'J'
             if self.settings['line-by-line'].get():
                 desc += 'L'
@@ -390,16 +397,16 @@ class Sparbook:
                             right = 8
                         elif right > 65:
                             right += -1
-                        l1 = [0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  9, 10, 11, 12, 13, 14, 15, 16, 16, 16,
+                        '''l1 = [0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  9, 10, 11, 12, 13, 14, 15, 16, 16, 16,
                              16, 16, 16, 16, 16, 16, 16, 17, 18, 19, 20, 19, 21, 22, 23, 24, 25, 26, 27,
                              28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
                              47, 48, 49, 15, 49, 50, 51,  8, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
                              34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 52, 53, 52, 54
-                             ]  # optimize information storage
+                             ]
                         l2 = (40, 47, 60, 91, 123)  # left-characters
                         l3 = (41, 92, 62, 93, 125)  # right-characters
                         # 65 <= Capital characters <= 90
-                        # 97 <= Lowercase Characters <= 122
+                        # 97 <= Lowercase Characters <= 122'''
                         self.static_settings[
                             self.languages[self.static_settings['preferred language']]
                         ][95 * right + left] += 1
@@ -420,21 +427,6 @@ class Sparbook:
                     self.static_settings['updates'] = updates.tolist()
         print(f"Lang Entries: "
               f"{sum(self.static_settings[self.languages[1]])}, {sum(self.static_settings[self.languages[2]])}")
-        print(f"Img Width: {min(self.static_settings['stat1'])}, "
-              f"{statistics.quantiles(self.static_settings['stat1'], n=4)}, {max(self.static_settings['stat1'])} : "
-              f"{len(self.static_settings['stat1'])}, {statistics.mean(self.static_settings['stat1'])}, "
-              f"{statistics.stdev(self.static_settings['stat1'])}")
-        print(f"Text Width: {min(self.static_settings['stat2'])}, "
-              f"{statistics.quantiles(self.static_settings['stat2'], n=4)}, {max(self.static_settings['stat2'])} : "
-              f"{len(self.static_settings['stat2'])}, {statistics.mean(self.static_settings['stat2'])}, "
-              f"{statistics.stdev(self.static_settings['stat2'])}")
-        my_mean = 1.0 * sum(self.static_settings['stat1']) / sum(self.static_settings['stat2'])
-        st_dev = 0.0
-        for i in range(len(self.static_settings['stat1'])):
-            st_dev += self.static_settings['stat2'][i] * (
-                    self.static_settings['stat1'][i] / self.static_settings['stat2'][i] - my_mean
-            ) ** 2
-        print(f"Char Width: {my_mean}, {math.sqrt(st_dev / sum(self.static_settings['stat2']))}")
 
     def clear_transcript(self):
         self.transcript = []
